@@ -152,6 +152,8 @@ public class HeaderLayout extends LinearLayout {
                 intercepted = 0;
                 mLastXIntercept = mLastYIntercept = 0; // 事件完成结束
                 break;
+            default:
+                break;
         }
 
         Log.e(TAG, "是否拦截: " + (intercepted != 0 ? "是" : "否"));
@@ -181,14 +183,98 @@ public class HeaderLayout extends LinearLayout {
                 int deltaY = y - mLastY;
                 mHeaderHeight += deltaY;
                 setHeaderHeight(mHeaderHeight); // 设置头部的高度
+                break;
+            case MotionEvent.ACTION_UP:
+                int destHeight = 0;
+                // 自动向上或向下滑动.
+                if (mHeaderHeight <= mOriginalHeaderHeight * 0.5) {
+                    destHeight = 0;
+                    mStatus = Status.STATUS_COLLAPSED;
+                } else {
+                    destHeight = mOriginalHeaderHeight;
+                    mStatus = Status.STATUS_EXPANDED;
+                }
+                // 缓慢滑动, 0.5s
+                smoothSetHeaderHeight(mHeaderHeight, destHeight, 500);
+                break;
+            default:
+                break;
         }
 
-        return super.onTouchEvent(event);
+        mLastX = x;
+        mLastY = y;
+
+        return true;
+    }
+
+    /**
+     * 平滑设置头部的高度
+     *
+     * @param from     来源
+     * @param to       目标
+     * @param duration 持续时间
+     */
+    public void smoothSetHeaderHeight(final int from, final int to, long duration) {
+        smoothSetHeaderHeight(from, to, duration, false);
+    }
+
+    /**
+     * 平滑设置头部的高度
+     *
+     * @param from     来源
+     * @param to       目标
+     * @param duration 持续时间
+     * @param modify   是否修改
+     */
+    public void smoothSetHeaderHeight(final int from, final int to, long duration,
+                                      final boolean modify) {
+        final int frameCount = (int) (duration / 1000f * 30) + 1;  // 帧数
+        final float partition = (to - from) / (float) frameCount; // 距离
+        new Thread("Thread#smoothSetHeaderHeight") {
+            @Override public void run() {
+                for (int i = 0; i < frameCount; ++i) {
+                    final int height;
+                    if (i == frameCount - 1) {
+                        height = to;
+                    } else {
+                        height = (int) (from + partition * i);
+                    }
+                    // 逐步设置高度
+                    post(new Runnable() {
+                        @Override public void run() {
+                            setHeaderHeight(height);
+                        }
+                    });
+                    try {
+                        sleep(10); // 睡眠
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    // 设置修改原始高度
+                    if (modify) {
+                        setOriginalHeaderHeight(to);
+                    }
+                }
+            }
+        }.start();
     }
 
     // 放弃点击事件
     public interface OnGiveUpTouchEventListener {
         boolean giveUpTouchEvent(MotionEvent event);
+    }
+
+    /**
+     * 设置修改参数
+     *
+     * @param height 高度
+     * @param modify 修改原始高度
+     */
+    public void setHeaderHeight(int height, boolean modify) {
+        if (modify) {
+            setOriginalHeaderHeight(height);
+        }
+        setHeaderHeight(height);
     }
 
     /**
@@ -214,5 +300,20 @@ public class HeaderLayout extends LinearLayout {
         } else {
             mStatus = Status.STATUS_EXPANDED;
         }
+
+        if (mHeaderView != null && mHeaderView.getLayoutParams() != null) {
+            mHeaderView.getLayoutParams().height = height; // 设置高度
+            mHeaderView.requestLayout(); // 重绘
+            mHeaderHeight = height; // 高度
+        }
+    }
+
+    /**
+     * 设置原始头部高度
+     *
+     * @param originalHeaderHeight 原始头部高度
+     */
+    public void setOriginalHeaderHeight(int originalHeaderHeight) {
+        mOriginalHeaderHeight = originalHeaderHeight;
     }
 }
