@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">ScrollListView</string>
+    <string name="list_header_title">Girls'\nGeneration</string>
 </resources>
